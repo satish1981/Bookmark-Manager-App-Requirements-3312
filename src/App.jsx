@@ -5,6 +5,7 @@ import { BookmarkProvider } from './context/BookmarkContext';
 import { useAuth } from './context/AuthContext';
 import ModernLoginPage from './components/auth/ModernLoginPage';
 import ModernDashboard from './components/dashboard/ModernDashboard';
+import LandingPage from './components/landing/LandingPage';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -22,7 +23,10 @@ function AppContent() {
   
   return (
     <Routes>
-      <Route path="/" element={user ? <ModernDashboard /> : <ModernLoginPage />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<ModernLoginPage />} />
+      <Route path="/app" element={user ? <ModernDashboard /> : <ModernLoginPage />} />
+      <Route path="*" element={user ? <ModernDashboard /> : <ModernLoginPage />} />
     </Routes>
   );
 }

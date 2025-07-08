@@ -59,15 +59,16 @@ const item = {
 export default function ModernAnimatedFeatures() {
   const [currentDemoIndex, setCurrentDemoIndex] = useState(0);
   const controls = useAnimation();
-
+  
   // Rotate through demo items every 5 seconds
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentDemoIndex((prevIndex) => (prevIndex + 1) % 3);
     }, 5000);
+    
     return () => clearInterval(timer);
   }, []);
-
+  
   // Animate when demo index changes
   useEffect(() => {
     controls.start({
@@ -91,7 +92,7 @@ export default function ModernAnimatedFeatures() {
           transition={{ delay: 0.1, duration: 0.5 }}
           className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight"
         >
-          TubeMark
+          Bookmarkify
         </motion.h1>
         <motion.p
           initial={{ opacity: 0 }}
@@ -109,16 +110,11 @@ export default function ModernAnimatedFeatures() {
           <motion.div
             key={index}
             variants={item}
-            whileHover={{ 
-              scale: 1.03, 
-              rotateX: 2, 
-              rotateY: 2,
-              boxShadow: "0 20px 30px -10px rgba(0,0,0,0.2)"
-            }}
+            whileHover={{ scale: 1.03, rotateX: 2, rotateY: 2, boxShadow: "0 20px 30px -10px rgba(0,0,0,0.2)" }}
             className={`flex items-start p-5 ${feature.color} backdrop-blur-lg rounded-xl border border-white/20 shadow-xl`}
             style={{ transformStyle: "preserve-3d", perspective: 1000 }}
           >
-            <div 
+            <div
               className="p-3 rounded-full bg-white/20 flex items-center justify-center mr-4"
               style={{ transform: "translateZ(10px)" }}
             >
@@ -133,35 +129,21 @@ export default function ModernAnimatedFeatures() {
       </motion.div>
 
       {/* Interactive Demo */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 1.2, duration: 0.5 }}
         className="mt-10 relative"
-        style={{ 
-          transformStyle: "preserve-3d", 
-          perspective: 1000,
-          transformOrigin: "center center"
-        }}
-        whileHover={{ 
-          rotateX: 5,
-          rotateY: 5,
-        }}
+        style={{ transformStyle: "preserve-3d", perspective: 1000, transformOrigin: "center center" }}
+        whileHover={{ rotateX: 5, rotateY: 5, }}
       >
-        <motion.div 
+        <motion.div
           className="relative mx-auto w-full max-w-md"
-          animate={{
-            rotateY: [-2, 2, -2],
-            rotateX: [1, -1, 1]
-          }}
-          transition={{
-            duration: 6,
-            repeat: Infinity,
-            repeatType: "reverse"
-          }}
+          animate={{ rotateY: [-2, 2, -2], rotateX: [1, -1, 1] }}
+          transition={{ duration: 6, repeat: Infinity, repeatType: "reverse" }}
         >
           {/* Demo Browser Window */}
-          <div 
+          <div
             className="rounded-xl overflow-hidden shadow-2xl transform bg-white p-1"
             style={{ transform: "translateZ(50px)" }}
           >
@@ -172,15 +154,12 @@ export default function ModernAnimatedFeatures() {
                 <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                 <div className="w-3 h-3 rounded-full bg-green-500"></div>
                 <div className="h-6 bg-white rounded-md flex-1 flex items-center px-3 text-xs text-gray-500">
-                  tubemark.app
+                  bookmarkify.app
                 </div>
               </div>
-              
+
               {/* Demo Content */}
-              <motion.div 
-                animate={controls}
-                className="space-y-3"
-              >
+              <motion.div animate={controls} className="space-y-3">
                 {currentDemoIndex === 0 && (
                   <>
                     {/* YouTube video bookmark example */}
@@ -242,12 +221,15 @@ export default function ModernAnimatedFeatures() {
           </div>
 
           {/* Notification Badge */}
-          <div 
+          <div
             className="absolute -right-4 -bottom-4 transform rounded-lg overflow-hidden shadow-xl bg-white p-2 min-w-[180px]"
             style={{ transform: "translateZ(80px) rotate(-3deg)" }}
           >
             <div className="rounded bg-green-50 p-2 flex items-center">
-              <SafeIcon icon={FiIcons.FiCheckCircle} className="text-green-500 h-6 w-6 flex-shrink-0" />
+              <SafeIcon
+                icon={FiIcons.FiCheckCircle}
+                className="text-green-500 h-6 w-6 flex-shrink-0"
+              />
               <span className="ml-2 text-sm font-medium text-green-800">Bookmark Saved!</span>
             </div>
           </div>
