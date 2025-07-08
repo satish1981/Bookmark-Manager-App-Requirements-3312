@@ -3,8 +3,8 @@ import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { BookmarkProvider } from './context/BookmarkContext';
 import { useAuth } from './context/AuthContext';
-import LoginPage from './components/auth/LoginPage';
-import Dashboard from './components/dashboard/Dashboard';
+import ModernLoginPage from './components/auth/ModernLoginPage';
+import ModernDashboard from './components/dashboard/ModernDashboard';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -13,7 +13,7 @@ function AppContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-t-[#FF0000] border-b-[#FF0000] border-l-transparent border-r-transparent mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
         </div>
       </div>
@@ -22,10 +22,7 @@ function AppContent() {
   
   return (
     <Routes>
-      <Route 
-        path="/" 
-        element={user ? <Dashboard /> : <LoginPage />} 
-      />
+      <Route path="/" element={user ? <ModernDashboard /> : <ModernLoginPage />} />
     </Routes>
   );
 }
