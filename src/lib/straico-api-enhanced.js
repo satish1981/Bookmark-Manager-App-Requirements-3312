@@ -17,8 +17,8 @@ export const SMART_LLM_SELECTORS = {
 
 // Supported file types for upload
 export const SUPPORTED_FILE_TYPES = [
-  'pdf', 'docx', 'pptx', 'txt', 'xlsx', 'mp3', 'mp4', 'html', 'csv', 
-  'json', 'py', 'php', 'js', 'css', 'cs', 'swift', 'kt', 'xml', 'ts', 
+  'pdf', 'docx', 'pptx', 'txt', 'xlsx', 'mp3', 'mp4', 'html', 'csv', 'json',
+  'py', 'php', 'js', 'css', 'cs', 'swift', 'kt', 'xml', 'ts',
   'png', 'jpg', 'jpeg', 'webp', 'gif'
 ];
 
@@ -39,7 +39,7 @@ export const IMAGE_SIZES = {
  */
 const makeApiRequest = async (endpoint, options = {}, apiKey, version = STRAICO_API_VERSION) => {
   console.log('🔍 Making Straico API request:', { endpoint, version, hasApiKey: !!apiKey });
-  
+
   if (!apiKey || apiKey.trim() === '') {
     throw new Error('API key is required. Please enter your Straico API key in Settings.');
   }
@@ -133,15 +133,8 @@ const getErrorMessage = (status, data) => {
  */
 export const getUserInfo = async (apiKey) => {
   console.log('🔍 getUserInfo called');
-  
-  const response = await makeApiRequest('/user', {
-    method: 'GET'
-  }, apiKey);
-  
-  return {
-    user: response.data,
-    error: null
-  };
+  const response = await makeApiRequest('/user', { method: 'GET' }, apiKey);
+  return { user: response.data, error: null };
 };
 
 /**
@@ -151,29 +144,21 @@ export const getUserInfo = async (apiKey) => {
  */
 export const fetchModels = async (apiKey) => {
   console.log('🔍 fetchModels called (v0)');
-  
-  const response = await makeApiRequest('/models', {
-    method: 'GET'
-  }, apiKey);
+  const response = await makeApiRequest('/models', { method: 'GET' }, apiKey);
   
   // Transform the response to match our expected format
   const models = response.data.map(model => ({
     id: model.model,
     name: model.name,
     description: `${model.name} AI model`,
-    pricing: model.pricing ? 
-      `${model.pricing.coins} coins per ${model.pricing.words} words` : 
-      'Contact Straico for pricing',
+    pricing: model.pricing ? `${model.pricing.coins} coins per ${model.pricing.words} words` : 'Contact Straico for pricing',
     max_tokens: model.max_output || 'Variable',
     capabilities: ['text-generation', 'summarization'],
     provider: model.model.split('/')[0] || 'Unknown',
     category: 'chat'
   }));
-  
-  return {
-    models,
-    error: null
-  };
+
+  return { models, error: null };
 };
 
 /**
@@ -183,18 +168,13 @@ export const fetchModels = async (apiKey) => {
  */
 export const fetchDetailedModels = async (apiKey) => {
   console.log('🔍 fetchDetailedModels called (v1)');
-  
-  const response = await makeApiRequest('/models', {
-    method: 'GET'
-  }, apiKey, STRAICO_API_V1_VERSION);
+  const response = await makeApiRequest('/models', { method: 'GET' }, apiKey, STRAICO_API_V1_VERSION);
   
   const chatModels = response.data.chat?.map(model => ({
     id: model.model,
     name: model.name,
     description: model.metadata?.description || `${model.name} chat model`,
-    pricing: model.pricing ? 
-      `${model.pricing.coins} coins per ${model.pricing.words || 100} words` : 
-      'Variable pricing',
+    pricing: model.pricing ? `${model.pricing.coins} coins per ${model.pricing.words || 100} words` : 'Variable pricing',
     max_tokens: model.max_output || model.word_limit || 'Variable',
     capabilities: ['text-generation', 'conversation', 'summarization'],
     provider: model.model.split('/')[0] || 'Unknown',
@@ -211,9 +191,7 @@ export const fetchDetailedModels = async (apiKey) => {
     id: model.model,
     name: model.name,
     description: model.metadata?.description || `${model.name} image generation model`,
-    pricing: model.pricing ? 
-      `${model.pricing.coins} coins per image` : 
-      'Variable pricing',
+    pricing: model.pricing ? `${model.pricing.coins} coins per image` : 'Variable pricing',
     max_tokens: 'N/A',
     capabilities: ['image-generation'],
     provider: model.model.split('/')[0] || 'Unknown',
@@ -225,7 +203,7 @@ export const fetchDetailedModels = async (apiKey) => {
       supportedSizes: ['square', 'landscape', 'portrait']
     }
   })) || [];
-  
+
   return {
     models: [...chatModels, ...imageModels],
     chatModels,
@@ -243,11 +221,11 @@ export const fetchDetailedModels = async (apiKey) => {
  * @returns {Promise<Object>} Generated summary with usage info
  */
 export const generateSummary = async (content, apiKey, modelId, options = {}) => {
-  console.log('🔍 generateSummary called', { 
-    contentLength: content?.length, 
-    modelId, 
+  console.log('🔍 generateSummary called', {
+    contentLength: content?.length,
+    modelId,
     hasApiKey: !!apiKey,
-    options 
+    options
   });
 
   const {
@@ -261,11 +239,9 @@ export const generateSummary = async (content, apiKey, modelId, options = {}) =>
   // Create the message based on content type
   let message;
   if (content.startsWith('http')) {
-    message = customPrompt || 
-      `Please provide a comprehensive summary of the content at this URL: ${content}. Focus on the key points, main ideas, and important details.`;
+    message = customPrompt || `Please provide a comprehensive summary of the content at this URL: ${content}. Focus on the key points, main ideas, and important details.`;
   } else {
-    message = customPrompt || 
-      `Please provide a comprehensive summary of the following content: ${content}. Focus on the key points, main ideas, and important details.`;
+    message = customPrompt || `Please provide a comprehensive summary of the following content: ${content}. Focus on the key points, main ideas, and important details.`;
   }
 
   const requestBody = {
@@ -315,10 +291,10 @@ export const generateSummary = async (content, apiKey, modelId, options = {}) =>
  * @returns {Promise<Object>} Enhanced completion response
  */
 export const generateEnhancedCompletion = async (prompt, apiKey, options = {}) => {
-  console.log('🔍 generateEnhancedCompletion called (v1)', { 
-    promptLength: prompt?.length, 
+  console.log('🔍 generateEnhancedCompletion called (v1)', {
+    promptLength: prompt?.length,
     hasApiKey: !!apiKey,
-    options 
+    options
   });
 
   const {
@@ -366,11 +342,11 @@ export const generateEnhancedCompletion = async (prompt, apiKey, options = {}) =
  * @returns {Promise<Object>} Upload response with file URL
  */
 export const uploadFile = async (file, apiKey) => {
-  console.log('🔍 uploadFile called', { 
-    fileName: file?.name, 
+  console.log('🔍 uploadFile called', {
+    fileName: file?.name,
     fileSize: file?.size,
     fileType: file?.type,
-    hasApiKey: !!apiKey 
+    hasApiKey: !!apiKey
   });
 
   // Validate file size (25MB limit)
@@ -407,10 +383,10 @@ export const uploadFile = async (file, apiKey) => {
  * @returns {Promise<Object>} Generated images with metadata
  */
 export const generateImage = async (description, apiKey, options = {}) => {
-  console.log('🔍 generateImage called', { 
-    descriptionLength: description?.length, 
+  console.log('🔍 generateImage called', {
+    descriptionLength: description?.length,
     hasApiKey: !!apiKey,
-    options 
+    options
   });
 
   const {
@@ -461,10 +437,10 @@ export const generateImage = async (description, apiKey, options = {}) => {
  * @returns {boolean} Whether the key passes validation
  */
 export const validateApiKeyFormat = (apiKey) => {
-  console.log('🔍 validateApiKeyFormat called', { 
-    hasApiKey: !!apiKey, 
-    type: typeof apiKey, 
-    length: apiKey?.length 
+  console.log('🔍 validateApiKeyFormat called', {
+    hasApiKey: !!apiKey,
+    type: typeof apiKey,
+    length: apiKey?.length
   });
 
   if (!apiKey || typeof apiKey !== 'string') {
@@ -473,16 +449,14 @@ export const validateApiKeyFormat = (apiKey) => {
 
   // Enhanced format validation
   const trimmedKey = apiKey.trim();
-  
+
   // Basic checks
   if (trimmedKey.length === 0) {
     return false;
   }
 
   // Check for common invalid patterns
-  if (trimmedKey.includes(' ') || 
-      trimmedKey.includes('\n') || 
-      trimmedKey.includes('\t')) {
+  if (trimmedKey.includes(' ') || trimmedKey.includes('\n') || trimmedKey.includes('\t')) {
     return false;
   }
 
@@ -501,9 +475,9 @@ export const validateApiKeyFormat = (apiKey) => {
  * @returns {Promise<Object>} Verification result with user info
  */
 export const verifyApiKey = async (apiKey) => {
-  console.log('🔍 verifyApiKey called', { 
-    hasApiKey: !!apiKey, 
-    keyLength: apiKey?.length 
+  console.log('🔍 verifyApiKey called', {
+    hasApiKey: !!apiKey,
+    keyLength: apiKey?.length
   });
 
   if (!validateApiKeyFormat(apiKey)) {
@@ -513,7 +487,6 @@ export const verifyApiKey = async (apiKey) => {
   try {
     const userInfo = await getUserInfo(apiKey);
     console.log('🔍 API key verification successful', userInfo);
-    
     return {
       valid: true,
       user: userInfo.user,

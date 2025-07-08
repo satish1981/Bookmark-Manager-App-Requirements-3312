@@ -2,12 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { 
-  generateSummary, 
-  fetchDetailedModels, 
-  SMART_LLM_SELECTORS,
-  getUserInfo 
-} from '../../lib/straico-api-enhanced';
+import { generateSummary, fetchDetailedModels, SMART_LLM_SELECTORS, getUserInfo } from '../../lib/straico-api-enhanced';
 import supabase from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import ErrorModal from '../common/ErrorModal';
@@ -30,6 +25,13 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
   const [customPrompt, setCustomPrompt] = useState('');
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(500);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  
+  // New state for transcript functionality
+  const [transcript, setTranscript] = useState('');
+  const [transcriptFile, setTranscriptFile] = useState(null);
+  const [transcriptInputMode, setTranscriptInputMode] = useState('text'); // 'text' or 'file'
+  const [transcriptError, setTranscriptError] = useState('');
 
   // Initialize component
   useEffect(() => {
@@ -45,42 +47,79 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
     }
   }, [bookmark]);
 
-  // Fetch user settings and load data
+  // Fetch user settings with proper error handling for missing columns
   const fetchUserSettings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_settings_bk4576hgty')
-        .select('straico_api_key, straico_model_id, smart_selector_preference, use_smart_selector')
-        .eq('user_id', user.id)
-        .single();
+    console.log('🔍 EnhancedAISummaryModal: Fetching user settings for user:', user?.id);
+    setIsLoadingSettings(true);
+    setError('');
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user settings:', error);
-        setError('Failed to load user settings');
-        return;
+    try {
+      // First, try to get basic settings
+      const { data: basicData, error: basicError } = await supabase
+        .from('user_settings_bk4576hgty')
+        .select('straico_api_key, straico_model_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (basicError) {
+        console.error('🔍 EnhancedAISummaryModal: Error fetching basic settings:', basicError);
+        if (basicError.code !== 'PGRST116') {
+          setError(`Failed to load user settings: ${basicError.message}`);
+          setIsLoadingSettings(false);
+          return;
+        }
       }
 
-      if (data) {
-        const userApiKey = data.straico_api_key || '';
-        setApiKey(userApiKey);
-        setSelectedModelId(data.straico_model_id || '');
-        setUseSmartSelector(data.use_smart_selector !== false);
-        setSmartSelectorType(data.smart_selector_preference || SMART_LLM_SELECTORS.QUALITY);
+      // Then try to get enhanced settings, but handle missing columns gracefully
+      let enhancedData = null;
+      try {
+        const { data: extendedData, error: extendedError } = await supabase
+          .from('user_settings_bk4576hgty')
+          .select('smart_selector_preference, use_smart_selector')
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-        if (userApiKey) {
-          await Promise.all([
-            loadModels(userApiKey),
-            loadUserInfo(userApiKey)
-          ]);
+        if (!extendedError) {
+          enhancedData = extendedData;
         } else {
-          showApiKeyRequiredError();
+          console.warn('🔍 Enhanced settings not available:', extendedError.message);
         }
+      } catch (err) {
+        console.warn('🔍 Enhanced settings columns may not exist:', err.message);
+      }
+
+      if (basicData && basicData.straico_api_key) {
+        const userApiKey = basicData.straico_api_key;
+        const userModelId = basicData.straico_model_id || '';
+        const userSmartSelectorPreference = enhancedData?.smart_selector_preference || SMART_LLM_SELECTORS.QUALITY;
+        const userUseSmartSelector = enhancedData?.use_smart_selector !== false;
+
+        console.log('🔍 EnhancedAISummaryModal: Found API key, length:', userApiKey.length);
+        console.log('🔍 EnhancedAISummaryModal: Settings loaded:', {
+          modelId: userModelId,
+          smartSelectorPreference: userSmartSelectorPreference,
+          useSmartSelector: userUseSmartSelector
+        });
+
+        setApiKey(userApiKey);
+        setSelectedModelId(userModelId);
+        setUseSmartSelector(userUseSmartSelector);
+        setSmartSelectorType(userSmartSelectorPreference);
+
+        // Load models and user info
+        await Promise.all([
+          loadModels(userApiKey),
+          loadUserInfo(userApiKey)
+        ]);
       } else {
+        console.log('🔍 EnhancedAISummaryModal: No API key found in settings');
         showApiKeyRequiredError();
       }
     } catch (err) {
-      console.error('Error in fetchUserSettings:', err);
-      setError('An unexpected error occurred');
+      console.error('🔍 EnhancedAISummaryModal: Exception in fetchUserSettings:', err);
+      setError(`An unexpected error occurred: ${err.message}`);
+    } finally {
+      setIsLoadingSettings(false);
     }
   };
 
@@ -89,36 +128,39 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
     try {
       const info = await getUserInfo(key);
       setUserInfo(info.user);
+      console.log('🔍 EnhancedAISummaryModal: User info loaded:', info.user);
     } catch (err) {
-      console.warn('Could not load user info:', err);
+      console.warn('🔍 EnhancedAISummaryModal: Could not load user info:', err);
     }
   };
 
   // Load models from Straico API
   const loadModels = async (key = apiKey) => {
     if (!key || key.trim() === '') {
+      console.log('🔍 EnhancedAISummaryModal: No API key provided for loading models');
       showApiKeyRequiredError();
       return;
     }
 
+    console.log('🔍 EnhancedAISummaryModal: Loading models with API key length:', key.length);
     setIsLoadingModels(true);
     setError('');
 
     try {
       const result = await fetchDetailedModels(key);
-      
-      // Filter to only chat models for text generation
       const chatModels = result.chatModels || [];
       setModels(chatModels);
+
+      console.log('🔍 EnhancedAISummaryModal: Models loaded successfully:', chatModels.length);
 
       // Auto-select first model if none selected
       if (!selectedModelId && chatModels.length > 0) {
         setSelectedModelId(chatModels[0].id);
+        console.log('🔍 EnhancedAISummaryModal: Auto-selected model:', chatModels[0].id);
       }
-
     } catch (err) {
-      console.error('Error loading models:', err);
-      if (err.message.includes('API key')) {
+      console.error('🔍 EnhancedAISummaryModal: Error loading models:', err);
+      if (err.message.includes('API key') || err.message.includes('Invalid') || err.message.includes('401')) {
         showApiKeyError(err.message);
       } else {
         setError(err.message || 'Failed to load models from Straico API');
@@ -133,7 +175,7 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
   const showApiKeyRequiredError = () => {
     setErrorModalData({
       title: 'Straico API Key Required',
-      message: 'You need to configure your Straico API key before generating AI summaries. Please go to Settings → API Key Manager to add your valid Straico API key.',
+      message: 'You need to configure your Straico API key before generating AI summaries. Please go to Settings → AI API Settings to add your valid Straico API key.',
       actionText: 'Go to Settings',
       onAction: () => {
         setShowErrorModal(false);
@@ -148,7 +190,7 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
   const showApiKeyError = (errorMessage) => {
     setErrorModalData({
       title: 'Invalid Straico API Key',
-      message: `${errorMessage} Please check your API key in Settings and ensure it's valid and has the necessary permissions.`,
+      message: `${errorMessage} Please check your API key in Settings → AI API Settings and ensure it's valid and has the necessary permissions.`,
       actionText: 'Go to Settings',
       onAction: () => {
         setShowErrorModal(false);
@@ -159,29 +201,106 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
     setShowErrorModal(true);
   };
 
-  // Generate summary using enhanced API
-  const handleGenerate = async () => {
+  // Handle transcript file upload
+  const handleTranscriptFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setTranscriptError('');
+    
+    // Validate file type
+    if (!file.type.startsWith('text/') && !file.name.endsWith('.txt')) {
+      setTranscriptError('Please upload a text file (.txt)');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setTranscriptError('File size must be less than 5MB');
+      return;
+    }
+
+    setTranscriptFile(file);
+    
+    // Read file content
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target.result;
+      if (content.length > 50000) {
+        setTranscriptError('Transcript must be less than 50,000 characters');
+        return;
+      }
+      setTranscript(content);
+    };
+    reader.onerror = () => {
+      setTranscriptError('Error reading file');
+    };
+    reader.readAsText(file);
+  };
+
+  // Handle transcript text change
+  const handleTranscriptTextChange = (e) => {
+    const text = e.target.value;
+    setTranscript(text);
+    setTranscriptError('');
+    
+    if (text.length > 50000) {
+      setTranscriptError('Transcript must be less than 50,000 characters');
+    }
+  };
+
+  // Validate inputs before generation
+  const validateInputs = () => {
     if (!apiKey || apiKey.trim() === '') {
       showApiKeyRequiredError();
-      return;
+      return false;
     }
 
     if (!useSmartSelector && !selectedModelId) {
       setError('Please select a model or enable smart model selection');
+      return false;
+    }
+
+    if (!bookmark.url) {
+      setError('Video URL is required');
+      return false;
+    }
+
+    if (transcript.length > 50000) {
+      setTranscriptError('Transcript must be less than 50,000 characters');
+      return false;
+    }
+
+    return true;
+  };
+
+  // Generate summary using enhanced API with transcript
+  const handleGenerate = async () => {
+    if (!validateInputs()) {
       return;
     }
 
+    console.log('🔍 EnhancedAISummaryModal: Starting enhanced summary generation');
     setIsGenerating(true);
     setError('');
     setGenerationResult(null);
 
     try {
+      // Create enhanced prompt with both URL and transcript
+      let enhancedPrompt = customPrompt.trim() || 'Please provide a comprehensive summary focusing on the key points, main ideas, and important details.';
+      
+      if (transcript.trim()) {
+        enhancedPrompt += `\n\nVideo URL: ${bookmark.url}\n\nVideo Transcript:\n${transcript}`;
+      } else {
+        enhancedPrompt += `\n\nVideo URL: ${bookmark.url}`;
+      }
+
       const options = {
         useSmartSelector,
         smartSelectorType,
         temperature,
         maxTokens,
-        customPrompt: customPrompt.trim() || null
+        customPrompt: enhancedPrompt
       };
 
       const result = await generateSummary(
@@ -191,12 +310,12 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
         options
       );
 
+      console.log('🔍 EnhancedAISummaryModal: Summary generated successfully');
       setSummary(result.summary);
       setGenerationResult(result);
-
     } catch (err) {
-      console.error('Error generating summary:', err);
-      if (err.message.includes('API key')) {
+      console.error('🔍 EnhancedAISummaryModal: Error generating summary:', err);
+      if (err.message.includes('API key') || err.message.includes('Invalid') || err.message.includes('401')) {
         showApiKeyError(err.message);
       } else {
         setError(err.message || 'Failed to generate summary');
@@ -227,6 +346,29 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
     return colors[provider?.toLowerCase()] || 'text-gray-600';
   };
 
+  // Show loading state while fetching settings
+  if (isLoadingSettings) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50"
+      >
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden p-6"
+        >
+          <div className="flex items-center justify-center">
+            <SafeIcon icon={FiIcons.FiLoader} className="animate-spin h-8 w-8 text-blue-500 mr-3" />
+            <span className="text-gray-700">Loading enhanced AI settings...</span>
+          </div>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
   return (
     <>
       <motion.div
@@ -238,7 +380,7 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="w-full max-w-4xl bg-white rounded-lg shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
+          className="w-full max-w-5xl bg-white rounded-lg shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
         >
           {/* Header */}
           <div className="px-6 py-4 bg-purple-600 text-white flex justify-between items-center">
@@ -284,7 +426,9 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
             )}
 
             {/* API Key Status */}
-            <div className={`p-3 rounded-md ${apiKey ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'}`}>
+            <div className={`p-3 rounded-md ${
+              apiKey ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'
+            }`}>
               <div className="flex items-start">
                 <SafeIcon 
                   icon={apiKey ? FiIcons.FiCheck : FiIcons.FiAlertTriangle} 
@@ -292,33 +436,140 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
                 />
                 <div className="text-sm">
                   {apiKey ? (
-                    <p>Straico API key is configured and ready for enhanced AI features.</p>
+                    <>
+                      <p className="font-medium">Straico API Key Connected</p>
+                      <p>API key is configured and ready for enhanced AI features. Key length: {apiKey.length} characters</p>
+                    </>
                   ) : (
                     <>
                       <p className="font-medium">No Straico API Key Found</p>
-                      <p>Please configure your API key in Settings before generating AI summaries.</p>
+                      <p>Please configure your API key in Settings → AI API Settings before generating AI summaries.</p>
                     </>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Bookmark Information */}
-            <div>
-              <h3 className="font-medium text-gray-900 mb-2">Content to Summarize</h3>
-              <div className="bg-gray-50 p-4 rounded-md">
-                <p className="font-medium text-gray-900">{bookmark.title}</p>
-                <a 
-                  href={bookmark.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline break-all"
-                >
-                  {bookmark.url}
-                </a>
-                {bookmark.description && (
-                  <p className="text-sm text-gray-600 mt-1">{bookmark.description}</p>
-                )}
+            {/* Content Input Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Video URL */}
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">Video Information</h3>
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="font-medium text-gray-900 mb-1">{bookmark.title}</p>
+                  <a
+                    href={bookmark.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline break-all"
+                  >
+                    {bookmark.url}
+                  </a>
+                  {bookmark.description && (
+                    <p className="text-sm text-gray-600 mt-2">{bookmark.description}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Transcript Input */}
+              <div>
+                <h3 className="font-medium text-gray-900 mb-2">Video Transcript (Optional)</h3>
+                <div className="space-y-3">
+                  {/* Input Mode Toggle */}
+                  <div className="flex rounded-md shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setTranscriptInputMode('text')}
+                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-l-md border focus:outline-none ${
+                        transcriptInputMode === 'text'
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <SafeIcon icon={FiIcons.FiEdit} className="h-4 w-4 mr-2 inline" />
+                      Paste Text
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTranscriptInputMode('file')}
+                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-r-md border border-l-0 focus:outline-none ${
+                        transcriptInputMode === 'file'
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <SafeIcon icon={FiIcons.FiUpload} className="h-4 w-4 mr-2 inline" />
+                      Upload File
+                    </button>
+                  </div>
+
+                  {/* Text Input */}
+                  {transcriptInputMode === 'text' && (
+                    <div>
+                      <textarea
+                        value={transcript}
+                        onChange={handleTranscriptTextChange}
+                        placeholder="Paste your video transcript here to enhance the summary accuracy..."
+                        rows="6"
+                        className="block w-full text-sm border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+                      />
+                      <div className="flex justify-between items-center mt-1">
+                        <p className="text-xs text-gray-500">
+                          Adding a transcript will improve summary accuracy
+                        </p>
+                        <span className={`text-xs ${transcript.length > 45000 ? 'text-red-500' : 'text-gray-500'}`}>
+                          {transcript.length}/50,000
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* File Upload */}
+                  {transcriptInputMode === 'file' && (
+                    <div>
+                      <div className="flex items-center justify-center w-full">
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <SafeIcon icon={FiIcons.FiUpload} className="h-8 w-8 text-gray-400 mb-2" />
+                            <p className="text-sm text-gray-500">
+                              <span className="font-semibold">Click to upload</span> transcript file
+                            </p>
+                            <p className="text-xs text-gray-500">TXT files only (MAX 5MB)</p>
+                          </div>
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept=".txt,text/plain"
+                            onChange={handleTranscriptFileChange}
+                          />
+                        </label>
+                      </div>
+                      {transcriptFile && (
+                        <div className="mt-2 flex items-center text-sm text-gray-600">
+                          <SafeIcon icon={FiIcons.FiFile} className="h-4 w-4 mr-2" />
+                          <span>{transcriptFile.name}</span>
+                          <button
+                            onClick={() => {
+                              setTranscriptFile(null);
+                              setTranscript('');
+                            }}
+                            className="ml-2 text-red-500 hover:text-red-700"
+                          >
+                            <SafeIcon icon={FiIcons.FiX} className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Transcript Error */}
+                  {transcriptError && (
+                    <div className="text-sm text-red-600 flex items-center">
+                      <SafeIcon icon={FiIcons.FiAlertCircle} className="h-4 w-4 mr-1" />
+                      {transcriptError}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -346,7 +597,7 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
                   <p className="mt-1 text-xs text-gray-600">
                     Let AI choose the optimal model for this summarization task.
                   </p>
-
+                  
                   {useSmartSelector && (
                     <div className="mt-3">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -389,27 +640,34 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
                         {isLoadingModels ? "Loading..." : "Refresh"}
                       </button>
                     </div>
-
-                    <select
-                      value={selectedModelId}
-                      onChange={(e) => setSelectedModelId(e.target.value)}
-                      disabled={models.length === 0 || isLoadingModels || !apiKey || isGenerating}
-                      className="block w-full text-sm border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
-                    >
-                      {models.length === 0 ? (
-                        <option value="">No models available</option>
-                      ) : (
-                        <>
-                          <option value="">Select a model</option>
-                          {models.map(model => (
-                            <option key={model.id} value={model.id}>
-                              {model.name} ({model.pricing})
-                            </option>
-                          ))}
-                        </>
-                      )}
-                    </select>
-
+                    
+                    {isLoadingModels ? (
+                      <div className="flex items-center justify-center py-4">
+                        <SafeIcon icon={FiIcons.FiLoader} className="animate-spin h-5 w-5 mr-2 text-purple-500" />
+                        <span className="text-sm text-gray-600">Loading models from Straico API...</span>
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedModelId}
+                        onChange={(e) => setSelectedModelId(e.target.value)}
+                        disabled={models.length === 0 || !apiKey || isGenerating}
+                        className="block w-full text-sm border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        {models.length === 0 ? (
+                          <option value="">No models available</option>
+                        ) : (
+                          <>
+                            <option value="">Select a model</option>
+                            {models.map(model => (
+                              <option key={model.id} value={model.id}>
+                                {model.name} ({model.pricing})
+                              </option>
+                            ))}
+                          </>
+                        )}
+                      </select>
+                    )}
+                    
                     {/* Selected Model Info */}
                     {selectedModelId && models.length > 0 && (
                       <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
@@ -421,6 +679,7 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
                                 {selectedModel.provider} • {selectedModel.pricing}
                               </p>
                               <p className="text-gray-600">{selectedModel.description}</p>
+                              <p className="text-gray-500 mt-1">Max tokens: {selectedModel.max_tokens}</p>
                             </div>
                           ) : null;
                         })()}
@@ -433,7 +692,6 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
               {/* Generation Parameters */}
               <div>
                 <h3 className="font-medium text-gray-900 mb-3">Generation Settings</h3>
-                
                 <div className="space-y-4">
                   {/* Custom Prompt */}
                   <div>
@@ -524,6 +782,9 @@ export default function EnhancedAISummaryModal({ bookmark, onClose, onSave }) {
                   <p><strong>Provider:</strong> {generationResult.provider}</p>
                   <p><strong>Tokens:</strong> {generationResult.usage.totalTokens} (Input: {generationResult.usage.inputTokens}, Output: {generationResult.usage.outputTokens})</p>
                   <p><strong>Cost:</strong> {generationResult.usage.cost} coins</p>
+                  {transcript && (
+                    <p><strong>Transcript:</strong> Used ({transcript.length} characters)</p>
+                  )}
                   {generationResult.justification && (
                     <details className="mt-2">
                       <summary className="cursor-pointer font-medium">Model Selection Reasoning</summary>

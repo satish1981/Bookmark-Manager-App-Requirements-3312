@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
-import { generateSummary, fetchModels, checkStoredApiKey } from '../../lib/straico-api';
+import { generateSummary, fetchModels, validateApiKeyFormat } from '../../lib/straico-api';
 import supabase from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import ErrorModal from '../common/ErrorModal';
@@ -18,6 +18,14 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
   const [error, setError] = useState('');
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorModalData, setErrorModalData] = useState({});
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+
+  // Initialize summary with existing AI summary
+  useEffect(() => {
+    if (bookmark?.ai_summary) {
+      setSummary(bookmark.ai_summary);
+    }
+  }, [bookmark]);
 
   // Fetch user settings on component mount
   useEffect(() => {
@@ -26,39 +34,86 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
     }
   }, [user]);
 
-  // Fetch the user's stored settings
+  // Fetch the user's stored settings with comprehensive error handling
   const fetchUserSettings = async () => {
+    console.log('🔍 AISummaryModal: Fetching user settings for user:', user?.id);
+    setIsLoadingSettings(true);
+    setError('');
+
     try {
       const { data, error } = await supabase
         .from('user_settings_bk4576hgty')
         .select('straico_api_key, straico_model_id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid error if no record exists
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user settings:', error);
-        setError('Failed to load user settings');
-        return;
+      console.log('🔍 AISummaryModal: Settings query result:', { data, error });
+
+      if (error) {
+        console.error('🔍 AISummaryModal: Error fetching user settings:', error);
+        if (error.code !== 'PGRST116') { // Not a "no rows" error
+          setError(`Failed to load user settings: ${error.message}`);
+          setIsLoadingSettings(false);
+          return;
+        }
       }
 
-      if (data) {
-        const userApiKey = data.straico_api_key || '';
+      if (data && data.straico_api_key) {
+        const userApiKey = data.straico_api_key;
         const userModelId = data.straico_model_id || '';
+        
+        console.log('🔍 AISummaryModal: Found API key, length:', userApiKey.length);
+        console.log('🔍 AISummaryModal: Found model ID:', userModelId);
         
         setApiKey(userApiKey);
         setSelectedModelId(userModelId);
         
-        if (userApiKey) {
-          loadModels(userApiKey);
-        } else {
-          showApiKeyRequiredError();
-        }
+        // Load models with the found API key
+        await loadModels(userApiKey);
       } else {
+        console.log('🔍 AISummaryModal: No API key found in settings');
         showApiKeyRequiredError();
       }
     } catch (err) {
-      console.error('Error in fetchUserSettings:', err);
-      setError('An unexpected error occurred');
+      console.error('🔍 AISummaryModal: Exception in fetchUserSettings:', err);
+      setError(`An unexpected error occurred: ${err.message}`);
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  };
+
+  // Load models from Straico API
+  const loadModels = async (key = apiKey) => {
+    if (!key || key.trim() === '') {
+      console.log('🔍 AISummaryModal: No API key provided for loading models');
+      showApiKeyRequiredError();
+      return;
+    }
+
+    console.log('🔍 AISummaryModal: Loading models with API key length:', key.length);
+    setIsLoadingModels(true);
+    setError('');
+
+    try {
+      const result = await fetchModels(key);
+      console.log('🔍 AISummaryModal: Models loaded successfully:', result.models.length);
+      setModels(result.models);
+
+      // Auto-select first model if none selected but models are available
+      if (!selectedModelId && result.models.length > 0) {
+        setSelectedModelId(result.models[0].id);
+        console.log('🔍 AISummaryModal: Auto-selected model:', result.models[0].id);
+      }
+    } catch (err) {
+      console.error('🔍 AISummaryModal: Error loading models:', err);
+      if (err.message.includes('API key') || err.message.includes('Invalid') || err.message.includes('401')) {
+        showApiKeyError(err.message);
+      } else {
+        setError(err.message || 'Failed to load models from Straico API');
+      }
+      setModels([]);
+    } finally {
+      setIsLoadingModels(false);
     }
   };
 
@@ -66,11 +121,11 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
   const showApiKeyRequiredError = () => {
     setErrorModalData({
       title: 'Straico API Key Required',
-      message: 'You need to configure your Straico API key before generating AI summaries. Please go to Settings → API Key Manager to add your valid Straico API key.',
+      message: 'You need to configure your Straico API key before generating AI summaries. Please go to Settings → AI API Settings to add your valid Straico API key.',
       actionText: 'Go to Settings',
       onAction: () => {
         setShowErrorModal(false);
-        onClose(); // Close this modal
+        onClose();
         // Navigate to settings (you may need to implement navigation logic)
         window.location.hash = '#settings';
       }
@@ -82,7 +137,7 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
   const showApiKeyError = (errorMessage) => {
     setErrorModalData({
       title: 'Invalid Straico API Key',
-      message: `${errorMessage} Please check your API key in Settings and ensure it's valid and has the necessary permissions.`,
+      message: `${errorMessage} Please check your API key in Settings → AI API Settings and ensure it's valid and has the necessary permissions.`,
       actionText: 'Go to Settings',
       onAction: () => {
         setShowErrorModal(false);
@@ -93,41 +148,9 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
     setShowErrorModal(true);
   };
 
-  // Load models from Straico API
-  const loadModels = async (key = apiKey) => {
-    if (!key || key.trim() === '') {
-      showApiKeyRequiredError();
-      return;
-    }
-
-    setIsLoadingModels(true);
-    setError('');
-    
-    try {
-      const result = await fetchModels(key);
-      setModels(result.models);
-      
-      // If no model is selected but models are available, select the first one
-      if (!selectedModelId && result.models.length > 0) {
-        setSelectedModelId(result.models[0].id);
-      }
-    } catch (err) {
-      console.error('Error loading models:', err);
-      
-      if (err.message.includes('API key')) {
-        showApiKeyError(err.message);
-      } else {
-        setError(err.message || 'Failed to load models from Straico API');
-      }
-      
-      setModels([]);
-    } finally {
-      setIsLoadingModels(false);
-    }
-  };
-
   const handleGenerate = async () => {
     if (!apiKey || apiKey.trim() === '') {
+      console.log('🔍 AISummaryModal: No API key available for generation');
       showApiKeyRequiredError();
       return;
     }
@@ -137,16 +160,17 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
       return;
     }
 
+    console.log('🔍 AISummaryModal: Starting summary generation with model:', selectedModelId);
     setIsGenerating(true);
     setError('');
-    
+
     try {
       const result = await generateSummary(bookmark.url, apiKey, selectedModelId);
+      console.log('🔍 AISummaryModal: Summary generated successfully');
       setSummary(result.summary);
     } catch (err) {
-      console.error('Error generating summary:', err);
-      
-      if (err.message.includes('API key')) {
+      console.error('🔍 AISummaryModal: Error generating summary:', err);
+      if (err.message.includes('API key') || err.message.includes('Invalid') || err.message.includes('401')) {
         showApiKeyError(err.message);
       } else {
         setError(err.message || 'Failed to generate summary');
@@ -161,13 +185,35 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
       setError('Please generate a summary first');
       return;
     }
-    
     onSave(summary);
   };
 
   const handleModelChange = (e) => {
     setSelectedModelId(e.target.value);
   };
+
+  // Show loading state while fetching settings
+  if (isLoadingSettings) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50"
+      >
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden p-6"
+        >
+          <div className="flex items-center justify-center">
+            <SafeIcon icon={FiIcons.FiLoader} className="animate-spin h-8 w-8 text-blue-500 mr-3" />
+            <span className="text-gray-700">Loading AI settings...</span>
+          </div>
+        </motion.div>
+      </motion.div>
+    );
+  }
 
   return (
     <>
@@ -208,19 +254,24 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
             )}
 
             {/* API Key Status */}
-            <div className={`mb-4 p-3 rounded-md ${apiKey ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'}`}>
+            <div className={`mb-4 p-3 rounded-md ${
+              apiKey ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'
+            }`}>
               <div className="flex items-start">
-                <SafeIcon
-                  icon={apiKey ? FiIcons.FiCheck : FiIcons.FiAlertTriangle}
-                  className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5"
+                <SafeIcon 
+                  icon={apiKey ? FiIcons.FiCheck : FiIcons.FiAlertTriangle} 
+                  className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" 
                 />
                 <div className="text-sm">
                   {apiKey ? (
-                    <p>Straico API key is configured and ready for use.</p>
+                    <>
+                      <p className="font-medium">Straico API Key Connected</p>
+                      <p>API key is configured and ready for use. Key length: {apiKey.length} characters</p>
+                    </>
                   ) : (
                     <>
                       <p className="font-medium">No Straico API Key Found</p>
-                      <p>Please configure your API key in Settings before generating AI summaries.</p>
+                      <p>Please configure your API key in Settings → AI API Settings before generating AI summaries.</p>
                     </>
                   )}
                 </div>
@@ -262,7 +313,6 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
                   {isLoadingModels ? "Loading..." : "Refresh Models"}
                 </button>
               </div>
-
               <select
                 value={selectedModelId}
                 onChange={handleModelChange}
@@ -283,11 +333,12 @@ export default function AISummaryModal({ bookmark, onClose, onSave }) {
                 )}
               </select>
               <p className="mt-1 text-xs text-gray-500">
-                {!apiKey
-                  ? "Configure your API key in Settings to load models"
-                  : models.length === 0
-                  ? "No models found. Please check your API key permissions."
-                  : "Select the AI model to use for generating the summary"}
+                {!apiKey 
+                  ? "Configure your API key in Settings → AI API Settings to load models" 
+                  : models.length === 0 
+                  ? "No models found. Please check your API key permissions." 
+                  : "Select the AI model to use for generating the summary"
+                }
               </p>
             </div>
 

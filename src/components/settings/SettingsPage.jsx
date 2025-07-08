@@ -3,12 +3,12 @@ import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
-import ApiKeyManager from './ApiKeyManager';
-import ModelSelector from './ModelSelector';
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('api-keys');
+  const [appearance, setAppearance] = useState('system');
+  const [notifications, setNotifications] = useState(true);
+  const [autoplay, setAutoplay] = useState(true);
 
   if (!user) {
     return (
@@ -18,143 +18,177 @@ export default function SettingsPage() {
     );
   }
 
-  const tabs = [
-    { id: 'api-keys', name: 'API Keys', icon: FiIcons.FiKey },
-    { id: 'models', name: 'AI Models', icon: FiIcons.FiCpu },
-    { id: 'account', name: 'Account', icon: FiIcons.FiUser }
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Mobile Header */}
-      <header className="bg-white shadow lg:hidden">
-        <div className="px-4 sm:px-6 py-4">
-          <div className="flex items-center">
-            <SafeIcon icon={FiIcons.FiSettings} className="h-6 w-6 text-gray-700 mr-2" />
-            <h1 className="text-xl font-bold text-gray-900">Settings</h1>
-          </div>
-        </div>
-      </header>
-
-      {/* Desktop Header */}
-      <header className="bg-white shadow hidden lg:block">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center">
-            <SafeIcon icon={FiIcons.FiSettings} className="h-6 w-6 text-gray-700 mr-2" />
-            <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
-        {/* Mobile Tab navigation */}
-        <div className="mb-6 lg:hidden">
-          <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
-            {tabs.map((tab) => (
+    <div className="space-y-6">
+      {/* General Settings */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+      >
+        <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+          <SafeIcon icon={FiIcons.FiSettings} className="mr-2 text-gray-500" />
+          General Settings
+        </h3>
+        
+        <div className="space-y-6">
+          {/* Appearance */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Appearance
+            </label>
+            <div className="grid grid-cols-3 gap-3">
               <button
-                key={tab.id}
-                className={`w-full flex items-center px-4 py-3 text-left border-b border-gray-200 last:border-b-0 ${
-                  activeTab === tab.id
-                    ? 'bg-blue-50 text-blue-600 border-blue-200'
-                    : 'text-gray-700 hover:bg-gray-50'
+                onClick={() => setAppearance('light')}
+                className={`px-4 py-3 border rounded-md text-sm font-medium focus:outline-none ${
+                  appearance === 'light'
+                    ? 'bg-blue-50 border-blue-500 text-blue-700'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                 }`}
-                onClick={() => setActiveTab(tab.id)}
               >
-                <SafeIcon icon={tab.icon} className="mr-3 h-5 w-5" />
-                <span className="font-medium">{tab.name}</span>
-                <SafeIcon icon={FiIcons.FiChevronRight} className="ml-auto h-5 w-5" />
+                <SafeIcon icon={FiIcons.FiSun} className="h-5 w-5 mx-auto mb-1" />
+                <div>Light</div>
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Desktop Tab navigation */}
-        <div className="mb-6 hidden lg:block border-b border-gray-200">
-          <div className="flex space-x-8">
-            {tabs.map((tab) => (
               <button
-                key={tab.id}
-                className={`pb-4 px-1 border-b-2 font-medium text-sm flex items-center ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                onClick={() => setAppearance('dark')}
+                className={`px-4 py-3 border rounded-md text-sm font-medium focus:outline-none ${
+                  appearance === 'dark'
+                    ? 'bg-blue-50 border-blue-500 text-blue-700'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                 }`}
-                onClick={() => setActiveTab(tab.id)}
               >
-                <SafeIcon icon={tab.icon} className="mr-2 h-5 w-5" />
-                {tab.name}
+                <SafeIcon icon={FiIcons.FiMoon} className="h-5 w-5 mx-auto mb-1" />
+                <div>Dark</div>
               </button>
-            ))}
+              <button
+                onClick={() => setAppearance('system')}
+                className={`px-4 py-3 border rounded-md text-sm font-medium focus:outline-none ${
+                  appearance === 'system'
+                    ? 'bg-blue-50 border-blue-500 text-blue-700'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <SafeIcon icon={FiIcons.FiMonitor} className="h-5 w-5 mx-auto mb-1" />
+                <div>System</div>
+              </button>
+            </div>
+          </div>
+
+          {/* Notifications */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-medium text-gray-900">Notifications</h4>
+              <p className="text-sm text-gray-500">Receive notifications for bookmark updates</p>
+            </div>
+            <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+              <input
+                type="checkbox"
+                id="toggle-notifications"
+                className="absolute w-6 h-6 opacity-0"
+                checked={notifications}
+                onChange={() => setNotifications(!notifications)}
+              />
+              <label
+                htmlFor="toggle-notifications"
+                className={`block h-6 overflow-hidden rounded-full cursor-pointer ${
+                  notifications ? 'bg-blue-600' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`absolute block w-6 h-6 rounded-full transform transition-transform duration-200 ease-in-out bg-white ${
+                    notifications ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                ></span>
+              </label>
+            </div>
+          </div>
+
+          {/* Autoplay */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-medium text-gray-900">Autoplay Videos</h4>
+              <p className="text-sm text-gray-500">Automatically play videos when viewing bookmarks</p>
+            </div>
+            <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+              <input
+                type="checkbox"
+                id="toggle-autoplay"
+                className="absolute w-6 h-6 opacity-0"
+                checked={autoplay}
+                onChange={() => setAutoplay(!autoplay)}
+              />
+              <label
+                htmlFor="toggle-autoplay"
+                className={`block h-6 overflow-hidden rounded-full cursor-pointer ${
+                  autoplay ? 'bg-blue-600' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`absolute block w-6 h-6 rounded-full transform transition-transform duration-200 ease-in-out bg-white ${
+                    autoplay ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                ></span>
+              </label>
+            </div>
+          </div>
+
+          {/* Default View Mode */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Default View Mode
+            </label>
+            <select
+              className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+            >
+              <option>Grid View</option>
+              <option>List View</option>
+            </select>
           </div>
         </div>
+      </motion.div>
 
-        <div className="grid grid-cols-1 gap-6">
-          {/* API Keys Tab */}
-          {activeTab === 'api-keys' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+      {/* Data Management */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+        className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+      >
+        <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+          <SafeIcon icon={FiIcons.FiDatabase} className="mr-2 text-gray-500" />
+          Data Management
+        </h3>
+        
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Manage your bookmark data and export options
+          </p>
+          
+          <div className="flex flex-wrap gap-3">
+            <button
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
             >
-              <h2 className="text-lg lg:text-xl font-semibold text-gray-900 mb-4 flex items-center">
-                <SafeIcon icon={FiIcons.FiKey} className="mr-2 text-blue-500" />
-                API Key Management
-              </h2>
-              <div className="grid grid-cols-1 gap-6">
-                <ApiKeyManager />
-              </div>
-            </motion.div>
-          )}
-
-          {/* Models Tab */}
-          {activeTab === 'models' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+              <SafeIcon icon={FiIcons.FiDownload} className="h-4 w-4 mr-2" />
+              Export Bookmarks
+            </button>
+            
+            <button
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
             >
-              <h2 className="text-lg lg:text-xl font-semibold text-gray-900 mb-4 flex items-center">
-                <SafeIcon icon={FiIcons.FiCpu} className="mr-2 text-purple-500" />
-                AI Model Selection
-              </h2>
-              <div className="grid grid-cols-1 gap-6">
-                <ModelSelector />
-              </div>
-            </motion.div>
-          )}
-
-          {/* Account Tab */}
-          {activeTab === 'account' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 lg:p-6"
+              <SafeIcon icon={FiIcons.FiUpload} className="h-4 w-4 mr-2" />
+              Import Bookmarks
+            </button>
+            
+            <button
+              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none"
             >
-              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                <SafeIcon icon={FiIcons.FiUser} className="mr-2 text-gray-500" />
-                Account Information
-              </h3>
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center">
-                  <div className="min-w-0 sm:min-w-32 text-sm font-medium text-gray-500 mb-1 sm:mb-0">Email</div>
-                  <div className="text-sm text-gray-900 break-all">{user.email}</div>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center">
-                  <div className="min-w-0 sm:min-w-32 text-sm font-medium text-gray-500 mb-1 sm:mb-0">Account ID</div>
-                  <div className="text-sm text-gray-900 break-all font-mono">{user.id}</div>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center">
-                  <div className="min-w-0 sm:min-w-32 text-sm font-medium text-gray-500 mb-1 sm:mb-0">Created</div>
-                  <div className="text-sm text-gray-900">
-                    {new Date(user.created_at).toLocaleDateString()}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
+              <SafeIcon icon={FiIcons.FiTrash2} className="h-4 w-4 mr-2" />
+              Clear All Bookmarks
+            </button>
+          </div>
         </div>
-      </main>
+      </motion.div>
     </div>
   );
 }

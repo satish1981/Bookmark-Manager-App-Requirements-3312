@@ -13,6 +13,7 @@ export function BookmarkProvider({ children }) {
   const [bookmarks, setBookmarks] = useState([]);
   const [categories, setCategories] = useState([]);
   const [tags, setTags] = useState([]);
+  const [categoryRelationships, setCategoryRelationships] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -26,6 +27,7 @@ export function BookmarkProvider({ children }) {
       setBookmarks([]);
       setCategories([]);
       setTags([]);
+      setCategoryRelationships([]);
       setLoading(false);
     }
   }, [user]);
@@ -34,13 +36,13 @@ export function BookmarkProvider({ children }) {
   const fetchUserData = async () => {
     setLoading(true);
     setError(null);
-    
     try {
       console.log('Fetching user data...');
       await Promise.all([
         fetchBookmarks(),
         fetchCategories(),
-        fetchTags()
+        fetchTags(),
+        fetchCategoryRelationships()
       ]);
       console.log('User data fetched successfully');
     } catch (err) {
@@ -55,7 +57,6 @@ export function BookmarkProvider({ children }) {
   const fetchBookmarks = async () => {
     try {
       console.log('Fetching bookmarks...');
-      
       const { data: bookmarksData, error: bookmarksError } = await supabase
         .from('bookmarks_bk4576hgty')
         .select('*, category:category_id(*)')
@@ -101,11 +102,11 @@ export function BookmarkProvider({ children }) {
   const fetchCategories = async () => {
     try {
       console.log('Fetching categories...');
-      
       const { data, error } = await supabase
         .from('categories_bk4576hgty')
         .select('*')
-        .order('name');
+        .eq('user_id', user.id)
+        .order('position');
 
       if (error) {
         console.error('Categories fetch error:', error);
@@ -122,14 +123,38 @@ export function BookmarkProvider({ children }) {
     }
   };
 
+  // Fetch category relationships
+  const fetchCategoryRelationships = async () => {
+    try {
+      console.log('Fetching category relationships...');
+      const { data, error } = await supabase
+        .from('category_relationships_bk4576hgty')
+        .select('*')
+        .order('position');
+
+      if (error) {
+        console.error('Category relationships fetch error:', error);
+        throw error;
+      }
+
+      console.log('Category relationships data:', data);
+      setCategoryRelationships(data);
+      return data;
+    } catch (err) {
+      console.error('Error fetching category relationships:', err);
+      setError('Failed to load your category relationships');
+      throw err;
+    }
+  };
+
   // Fetch tags
   const fetchTags = async () => {
     try {
       console.log('Fetching tags...');
-      
       const { data, error } = await supabase
         .from('tags_bk4576hgty')
         .select('*')
+        .eq('user_id', user.id)
         .order('name');
 
       if (error) {
@@ -149,10 +174,10 @@ export function BookmarkProvider({ children }) {
 
   // Add bookmark with proper tag handling
   const addBookmark = async (bookmarkData) => {
-    console.log('=== ADD BOOKMARK START ===');
+    console.log('===ADD BOOKMARK START===');
     console.log('User ID:', user?.id);
     console.log('Bookmark data received:', bookmarkData);
-    
+
     if (!user?.id) {
       console.error('No user ID available');
       return { success: false, error: 'User not authenticated' };
@@ -191,17 +216,16 @@ export function BookmarkProvider({ children }) {
       // Handle tags if present
       if (bookmarkData.tags && bookmarkData.tags.length > 0) {
         console.log('Processing tags:', bookmarkData.tags);
-        
+
         // Process each tag and get proper UUIDs
         const tagIds = [];
-        
         for (const tag of bookmarkData.tags) {
           let tagId = tag.id;
-          
+
           // Check if this is a temporary tag ID (starts with 'temp-')
           if (!tagId || tagId.startsWith('temp-')) {
             console.log('Creating new tag:', tag.name);
-            
+
             // First check if tag already exists
             const { data: existingTags, error: checkError } = await supabase
               .from('tags_bk4576hgty')
@@ -231,7 +255,7 @@ export function BookmarkProvider({ children }) {
                 console.error('Tag creation error:', tagError);
                 throw tagError;
               }
-              
+
               tagId = newTag.id;
               console.log('New tag created with ID:', tagId);
             }
@@ -248,7 +272,6 @@ export function BookmarkProvider({ children }) {
         // Now create bookmark-tag relationships with valid UUIDs
         if (tagIds.length > 0) {
           console.log('Creating bookmark-tag relations with IDs:', tagIds);
-          
           const bookmarkTagRelations = tagIds.map(tagId => ({
             bookmark_id: bookmark.id,
             tag_id: tagId
@@ -271,11 +294,7 @@ export function BookmarkProvider({ children }) {
       console.log('Recording analytics...');
       const { error: analyticsError } = await supabase
         .from('analytics_bk4576hgty')
-        .insert([{
-          user_id: user.id,
-          bookmark_id: bookmark.id,
-          action: 'create'
-        }]);
+        .insert([{ user_id: user.id, bookmark_id: bookmark.id, action: 'create' }]);
 
       if (analyticsError) {
         console.warn('Analytics recording failed (non-critical):', analyticsError);
@@ -287,28 +306,22 @@ export function BookmarkProvider({ children }) {
         fetchBookmarks(),
         fetchTags()
       ]);
-      
-      console.log('=== ADD BOOKMARK SUCCESS ===');
-      return { success: true, bookmark };
 
+      console.log('===ADD BOOKMARK SUCCESS===');
+      return { success: true, bookmark };
     } catch (err) {
-      console.error('=== ADD BOOKMARK ERROR ===');
+      console.error('===ADD BOOKMARK ERROR===');
       console.error('Error details:', err);
-      console.error('Error message:', err.message);
-      console.error('Error code:', err.code);
-      console.error('Error hint:', err.hint);
-      console.error('Error details:', err.details);
-      
       return { success: false, error: err.message || 'Failed to add bookmark' };
     }
   };
 
   // Update bookmark with proper tag handling
   const updateBookmark = async (id, bookmarkData) => {
-    console.log('=== UPDATE BOOKMARK START ===');
+    console.log('===UPDATE BOOKMARK START===');
     console.log('Bookmark ID:', id);
     console.log('Update data:', bookmarkData);
-    
+
     try {
       // Update the bookmark
       const { data: bookmark, error: bookmarkError } = await supabase
@@ -332,7 +345,7 @@ export function BookmarkProvider({ children }) {
       // Handle tags if present
       if (bookmarkData.tags !== undefined) {
         console.log('Updating tags for bookmark:', id);
-        
+
         // Delete existing tag relations
         const { error: deleteError } = await supabase
           .from('bookmark_tags_bk4576hgty')
@@ -347,14 +360,13 @@ export function BookmarkProvider({ children }) {
         // Add new tag relations
         if (bookmarkData.tags && bookmarkData.tags.length > 0) {
           const tagIds = [];
-          
           for (const tag of bookmarkData.tags) {
             let tagId = tag.id;
-            
+
             // Check if this is a temporary tag ID
             if (!tagId || tagId.startsWith('temp-')) {
               console.log('Creating new tag during update:', tag.name);
-              
+
               // Check if tag already exists
               const { data: existingTags, error: checkError } = await supabase
                 .from('tags_bk4576hgty')
@@ -403,23 +415,18 @@ export function BookmarkProvider({ children }) {
       // Record analytics
       await supabase
         .from('analytics_bk4576hgty')
-        .insert([{
-          user_id: user.id,
-          bookmark_id: id,
-          action: 'update'
-        }]);
+        .insert([{ user_id: user.id, bookmark_id: id, action: 'update' }]);
 
       // Refresh bookmark list and tags
       await Promise.all([
         fetchBookmarks(),
         fetchTags()
       ]);
-      
-      console.log('=== UPDATE BOOKMARK SUCCESS ===');
-      return { success: true, bookmark };
 
+      console.log('===UPDATE BOOKMARK SUCCESS===');
+      return { success: true, bookmark };
     } catch (err) {
-      console.error('=== UPDATE BOOKMARK ERROR ===');
+      console.error('===UPDATE BOOKMARK ERROR===');
       console.error('Error details:', err);
       return { success: false, error: err.message };
     }
@@ -429,15 +436,11 @@ export function BookmarkProvider({ children }) {
   const deleteBookmark = async (id) => {
     try {
       console.log('Deleting bookmark:', id);
-      
+
       // Record analytics before deletion
       await supabase
         .from('analytics_bk4576hgty')
-        .insert([{
-          user_id: user.id,
-          bookmark_id: id,
-          action: 'delete'
-        }]);
+        .insert([{ user_id: user.id, bookmark_id: id, action: 'delete' }]);
 
       // Delete the bookmark (cascade will handle tags)
       const { error } = await supabase
@@ -450,7 +453,6 @@ export function BookmarkProvider({ children }) {
       // Refresh bookmark list
       await fetchBookmarks();
       return { success: true };
-      
     } catch (err) {
       console.error('Error deleting bookmark:', err);
       return { success: false, error: err.message };
@@ -461,14 +463,14 @@ export function BookmarkProvider({ children }) {
   const deleteMultipleBookmarks = async (ids) => {
     try {
       console.log('Deleting multiple bookmarks:', ids);
-      
+
       // Record analytics for each deletion
       const analyticsEntries = ids.map(id => ({
         user_id: user.id,
         bookmark_id: id,
         action: 'delete'
       }));
-      
+
       await supabase
         .from('analytics_bk4576hgty')
         .insert(analyticsEntries);
@@ -484,7 +486,6 @@ export function BookmarkProvider({ children }) {
       // Refresh bookmark list
       await fetchBookmarks();
       return { success: true };
-      
     } catch (err) {
       console.error('Error deleting multiple bookmarks:', err);
       return { success: false, error: err.message };
@@ -495,13 +496,13 @@ export function BookmarkProvider({ children }) {
   const updateMultipleBookmarkStatus = async (ids, status) => {
     try {
       console.log('Updating multiple bookmark statuses:', { ids, status });
-      
+
       // Update the bookmarks
       const { error } = await supabase
         .from('bookmarks_bk4576hgty')
-        .update({ 
-          status, 
-          updated_at: new Date().toISOString() 
+        .update({
+          status,
+          updated_at: new Date().toISOString()
         })
         .in('id', ids);
 
@@ -513,7 +514,7 @@ export function BookmarkProvider({ children }) {
         bookmark_id: id,
         action: `update_status_${status}`
       }));
-      
+
       await supabase
         .from('analytics_bk4576hgty')
         .insert(analyticsEntries);
@@ -521,7 +522,6 @@ export function BookmarkProvider({ children }) {
       // Refresh bookmark list
       await fetchBookmarks();
       return { success: true };
-      
     } catch (err) {
       console.error('Error updating multiple bookmark statuses:', err);
       return { success: false, error: err.message };
@@ -535,14 +535,20 @@ export function BookmarkProvider({ children }) {
       
       const { data, error } = await supabase
         .from('categories_bk4576hgty')
-        .insert([{ user_id: user.id, ...categoryData }])
+        .insert([{
+          user_id: user.id,
+          name: categoryData.name,
+          color: categoryData.color,
+          icon: categoryData.icon,
+          position: categoryData.position || 0,
+          is_expanded: categoryData.is_expanded !== false
+        }])
         .select();
 
       if (error) throw error;
-
+      
       await fetchCategories();
       return { success: true, category: data[0] };
-      
     } catch (err) {
       console.error('Error adding category:', err);
       return { success: false, error: err.message };
@@ -564,7 +570,7 @@ export function BookmarkProvider({ children }) {
         .select();
 
       if (error) throw error;
-
+      
       // Refresh categories and bookmarks to reflect changes
       await Promise.all([
         fetchCategories(),
@@ -572,7 +578,6 @@ export function BookmarkProvider({ children }) {
       ]);
       
       return { success: true, category: data[0] };
-      
     } catch (err) {
       console.error('Error updating category:', err);
       return { success: false, error: err.message };
@@ -583,8 +588,17 @@ export function BookmarkProvider({ children }) {
   const deleteCategory = async (id) => {
     try {
       console.log('Deleting category:', id);
+
+      // First check if this category has children
+      const childRelationships = categoryRelationships.filter(rel => rel.parent_id === id);
       
-      // First update any bookmarks using this category
+      // Delete all child relationships recursively
+      for (const rel of childRelationships) {
+        // We need to check if this child has its own children
+        await deleteCategory(rel.child_id);
+      }
+      
+      // Update any bookmarks using this category
       await supabase
         .from('bookmarks_bk4576hgty')
         .update({ category_id: null })
@@ -598,16 +612,80 @@ export function BookmarkProvider({ children }) {
 
       if (error) throw error;
 
-      // Refresh categories and bookmarks to reflect changes
+      // Refresh categories, bookmarks, and relationships
       await Promise.all([
         fetchCategories(),
-        fetchBookmarks()
+        fetchBookmarks(),
+        fetchCategoryRelationships()
       ]);
       
       return { success: true };
-      
     } catch (err) {
       console.error('Error deleting category:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Add category relationship (for nesting)
+  const addCategoryRelationship = async (relationshipData) => {
+    try {
+      console.log('Adding category relationship:', relationshipData);
+      
+      const { data, error } = await supabase
+        .from('category_relationships_bk4576hgty')
+        .insert([relationshipData])
+        .select();
+
+      if (error) throw error;
+      
+      await fetchCategoryRelationships();
+      return { success: true, relationship: data[0] };
+    } catch (err) {
+      console.error('Error adding category relationship:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Update category relationship
+  const updateCategoryRelationship = async (id, relationshipData) => {
+    try {
+      console.log('Updating category relationship:', { id, relationshipData });
+      
+      const { data, error } = await supabase
+        .from('category_relationships_bk4576hgty')
+        .update({
+          ...relationshipData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select();
+
+      if (error) throw error;
+      
+      await fetchCategoryRelationships();
+      return { success: true, relationship: data[0] };
+    } catch (err) {
+      console.error('Error updating category relationship:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Delete category relationship
+  const deleteCategoryRelationship = async (id) => {
+    try {
+      console.log('Deleting category relationship:', id);
+      
+      const { error } = await supabase
+        .from('category_relationships_bk4576hgty')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      await fetchCategoryRelationships();
+      return { success: true };
+    } catch (err) {
+      console.error('Error deleting category relationship:', err);
       return { success: false, error: err.message };
     }
   };
@@ -616,7 +694,6 @@ export function BookmarkProvider({ children }) {
   const addTag = async (tagName) => {
     try {
       console.log('Adding tag:', tagName);
-      
       const { data, error } = await supabase
         .from('tags_bk4576hgty')
         .insert([{ user_id: user.id, name: tagName }])
@@ -626,7 +703,6 @@ export function BookmarkProvider({ children }) {
 
       await fetchTags();
       return { success: true, tag: data[0] };
-      
     } catch (err) {
       console.error('Error adding tag:', err);
       return { success: false, error: err.message };
@@ -637,7 +713,6 @@ export function BookmarkProvider({ children }) {
   const updateTag = async (id, tagName) => {
     try {
       console.log('Updating tag:', { id, tagName });
-      
       const { data, error } = await supabase
         .from('tags_bk4576hgty')
         .update({ name: tagName })
@@ -651,9 +726,8 @@ export function BookmarkProvider({ children }) {
         fetchTags(),
         fetchBookmarks()
       ]);
-      
+
       return { success: true, tag: data[0] };
-      
     } catch (err) {
       console.error('Error updating tag:', err);
       return { success: false, error: err.message };
@@ -664,7 +738,7 @@ export function BookmarkProvider({ children }) {
   const deleteTag = async (id) => {
     try {
       console.log('Deleting tag:', id);
-      
+
       // First delete tag relations
       await supabase
         .from('bookmark_tags_bk4576hgty')
@@ -684,9 +758,8 @@ export function BookmarkProvider({ children }) {
         fetchTags(),
         fetchBookmarks()
       ]);
-      
+
       return { success: true };
-      
     } catch (err) {
       console.error('Error deleting tag:', err);
       return { success: false, error: err.message };
@@ -697,7 +770,6 @@ export function BookmarkProvider({ children }) {
   const fetchAnalytics = async () => {
     try {
       console.log('Fetching analytics...');
-      
       const { data, error } = await supabase
         .from('analytics_bk4576hgty')
         .select('*, bookmark:bookmark_id(category_id, status)')
@@ -707,7 +779,6 @@ export function BookmarkProvider({ children }) {
 
       console.log('Analytics data:', data);
       return { success: true, data };
-      
     } catch (err) {
       console.error('Error fetching analytics:', err);
       return { success: false, error: err.message };
@@ -718,12 +789,11 @@ export function BookmarkProvider({ children }) {
   const updateBookmarkSummary = async (id, summary) => {
     try {
       console.log('Updating bookmark summary:', { id, summary });
-      
       const { data, error } = await supabase
         .from('bookmarks_bk4576hgty')
-        .update({ 
+        .update({
           ai_summary: summary,
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString()
         })
         .eq('id', id)
         .select();
@@ -733,16 +803,11 @@ export function BookmarkProvider({ children }) {
       // Record analytics
       await supabase
         .from('analytics_bk4576hgty')
-        .insert([{
-          user_id: user.id,
-          bookmark_id: id,
-          action: 'generate_summary'
-        }]);
+        .insert([{ user_id: user.id, bookmark_id: id, action: 'generate_summary' }]);
 
       // Refresh bookmarks to reflect changes
       await fetchBookmarks();
       return { success: true, bookmark: data[0] };
-      
     } catch (err) {
       console.error('Error updating bookmark summary:', err);
       return { success: false, error: err.message };
@@ -753,12 +818,14 @@ export function BookmarkProvider({ children }) {
     bookmarks,
     categories,
     tags,
+    categoryRelationships,
     loading,
     error,
     fetchUserData,
     fetchBookmarks,
     fetchCategories,
     fetchTags,
+    fetchCategoryRelationships,
     addBookmark,
     updateBookmark,
     deleteBookmark,
@@ -767,6 +834,9 @@ export function BookmarkProvider({ children }) {
     addCategory,
     updateCategory,
     deleteCategory,
+    addCategoryRelationship,
+    updateCategoryRelationship,
+    deleteCategoryRelationship,
     addTag,
     updateTag,
     deleteTag,
