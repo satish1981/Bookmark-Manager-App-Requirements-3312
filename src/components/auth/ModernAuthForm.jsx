@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../context/AuthContext';
 import * as FiIcons from 'react-icons/fi';
-import { Link } from 'react-router-dom';
 
 export default function ModernAuthForm() {
   const [isLogin, setIsLogin] = useState(true);
@@ -14,33 +13,28 @@ export default function ModernAuthForm() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [resetPasswordSent, setResetPasswordSent] = useState(false);
-  
   const { signIn, signUp, resetPassword } = useAuth();
-  
+
   // Form variants for animations
   const formVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { 
       opacity: 1, 
-      y: 0, 
+      y: 0,
       transition: { 
-        duration: 0.5, 
-        staggerChildren: 0.1, 
-        delayChildren: 0.2 
-      } 
+        duration: 0.5,
+        staggerChildren: 0.1,
+        delayChildren: 0.2
+      }
     }
   };
-  
+
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { 
       opacity: 1, 
-      y: 0, 
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 24 
-      } 
+      y: 0,
+      transition: { type: "spring", stiffness: 300, damping: 24 }
     }
   };
 
@@ -48,7 +42,7 @@ export default function ModernAuthForm() {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
   };
-  
+
   const validatePassword = (password) => {
     return password.length >= 6;
   };
@@ -57,7 +51,7 @@ export default function ModernAuthForm() {
     e.preventDefault();
     setFormError('');
     setLoading(true);
-    
+
     try {
       // Validate inputs
       if (!validateEmail(email)) {
@@ -77,7 +71,7 @@ export default function ModernAuthForm() {
         setLoading(false);
         return;
       }
-      
+
       // Reset password
       if (resetPasswordSent) {
         const { success, error } = await resetPassword(email);
@@ -91,7 +85,7 @@ export default function ModernAuthForm() {
         setLoading(false);
         return;
       }
-      
+
       // Login or register
       if (isLogin) {
         const { success, error } = await signIn(email, password);
@@ -139,10 +133,13 @@ export default function ModernAuthForm() {
       className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-2xl"
     >
       {/* Form Header */}
-      <motion.div className="text-center" variants={itemVariants}>
-        <motion.div 
-          className="flex justify-center mb-4" 
-          whileHover={{ scale: 1.05, rotate: 5 }} 
+      <motion.div 
+        className="text-center"
+        variants={itemVariants}
+      >
+        <motion.div
+          className="flex justify-center mb-4"
+          whileHover={{ scale: 1.05, rotate: 5 }}
           whileTap={{ scale: 0.95 }}
         >
           <SafeIcon icon={FiIcons.FiBookmark} className="h-12 w-12 text-[#FF0000]" />
@@ -151,17 +148,17 @@ export default function ModernAuthForm() {
           {resetPasswordSent ? "Reset Password" : isLogin ? "Welcome Back" : "Create Account"}
         </h2>
         <p className="mt-2 text-sm text-gray-600">
-          {resetPasswordSent
-            ? "Enter your email to receive reset instructions"
-            : isLogin
-            ? "Sign in to access your bookmarks"
-            : "Sign up to start saving bookmarks"}
+          {resetPasswordSent 
+            ? "Enter your email to receive reset instructions" 
+            : isLogin 
+              ? "Sign in to access your bookmarks" 
+              : "Sign up to start saving bookmarks"}
         </p>
       </motion.div>
 
       {/* Error Message */}
       {formError && (
-        <motion.div
+        <motion.div 
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           className="p-3 text-sm text-red-700 bg-red-100 rounded-lg"
@@ -221,10 +218,7 @@ export default function ModernAuthForm() {
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                 >
-                  <SafeIcon
-                    icon={showPassword ? FiIcons.FiEyeOff : FiIcons.FiEye}
-                    className="h-5 w-5"
-                  />
+                  <SafeIcon icon={showPassword ? FiIcons.FiEyeOff : FiIcons.FiEye} className="h-5 w-5" />
                 </motion.button>
               </div>
             </div>
@@ -284,8 +278,8 @@ export default function ModernAuthForm() {
             {resetPasswordSent
               ? "Send Reset Instructions"
               : isLogin
-              ? "Sign In"
-              : "Create Account"}
+                ? "Sign In"
+                : "Create Account"}
           </motion.button>
         </motion.div>
       </form>
@@ -324,6 +318,7 @@ export default function ModernAuthForm() {
               <span className="px-2 bg-white text-gray-500">Or continue with</span>
             </div>
           </div>
+
           <div className="mt-6 grid grid-cols-2 gap-3">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -336,6 +331,7 @@ export default function ModernAuthForm() {
               </svg>
               Google
             </motion.button>
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -350,13 +346,6 @@ export default function ModernAuthForm() {
           </div>
         </motion.div>
       )}
-      
-      {/* Back to Home Link */}
-      <motion.div variants={itemVariants} className="text-center text-sm text-gray-500">
-        <Link to="/" className="text-[#FF0000] hover:text-red-700">
-          Return to home page
-        </Link>
-      </motion.div>
     </motion.div>
   );
 }
